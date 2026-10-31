@@ -1,0 +1,167 @@
+from kivy.app import App
+‎from kivy.uix.screenmanager import ScreenManager, Screen
+‎from kivy.uix.boxlayout import BoxLayout
+‎from kivy.uix.label import Label
+‎from kivy.uix.textinput import TextInput
+‎from kivy.uix.button import Button
+‎from kivy.uix.scrollview import ScrollView
+‎import re
+‎import os
+‎
+‎# --- 1. Login Screen ---
+‎class LoginScreen(Screen):
+‎    def __init__(self, **kwargs):
+‎        super().__init__(**kwargs)
+‎        layout = BoxLayout(orientation='vertical', padding=30, spacing=20)
+‎        
+‎        layout.add_widget(Label(text='[b]Security Login[/b]', markup=True, font_size=24, size_hint_y=None, height=50))
+‎        
+‎        self.pass_input = TextInput(hint_text='Enter Password (Raja)', password=True, multiline=False, size_hint_y=None, height=50)
+‎        layout.add_widget(self.pass_input)
+‎        
+‎        self.msg_label = Label(text='', color=(1, 0, 0, 1), size_hint_y=None, height=30)
+‎        layout.add_widget(self.msg_label)
+‎        
+‎        btn = Button(text='Login', size_hint_y=None, height=50, background_color=(0.1, 0.6, 0.8, 1))
+‎        btn.bind(on_press=self.verify_password)
+‎        layout.add_widget(btn)
+‎        
+‎        self.attempts = 3
+‎        self.add_widget(layout)
+‎
+‎    def verify_password(self, instance):
+‎        entered = self.pass_input.text
+‎        if entered.lower() == "raja":
+‎            self.manager.current = 'name_screen'
+‎        else:
+‎            self.attempts -= 1
+‎            if self.attempts > 0:
+‎                self.msg_label.text = f"Incorrect! Attempts left: {self.attempts}"
+‎            else:
+‎                self.msg_label.text = "Access Denied. Too many attempts."
+‎                instance.disabled = True
+‎
+‎# --- 2. Name Screen ---
+‎class NameScreen(Screen):
+‎    def __init__(self, **kwargs):
+‎        super().__init__(**kwargs)
+‎        layout = BoxLayout(orientation='vertical', padding=30, spacing=20)
+‎        
+‎        layout.add_widget(Label(text='[b]Enter Your Name[/b]', markup=True, font_size=24, size_hint_y=None, height=50))
+‎        
+‎        self.name_input = TextInput(hint_text='3-20 chars, letters/numbers/_', multiline=False, size_hint_y=None, height=50)
+‎        layout.add_widget(self.name_input)
+‎        
+‎        self.msg_label = Label(text='', color=(1, 0.5, 0, 1), size_hint_y=None, height=30)
+‎        layout.add_widget(self.msg_label)
+‎        
+‎        btn = Button(text='Continue', size_hint_y=None, height=50, background_color=(0.1, 0.6, 0.8, 1))
+‎        btn.bind(on_press=self.save_name)
+‎        layout.add_widget(btn)
+‎        
+‎        self.add_widget(layout)
+‎
+‎    def save_name(self, instance):
+‎        name = self.name_input.text.strip()
+‎        app = App.get_running_app()
+‎        if re.match(r"^[a-zA-Z0-9_]{3,20}$", name):
+‎            app.username = name
+‎        else:
+‎            app.username = "User"
+‎        self.manager.current = 'routine_screen'
+‎
+‎# --- 3. Routine Screen ---
+‎class RoutineScreen(Screen):
+‎    def __init__(self, **kwargs):
+‎        super().__init__(**kwargs)
+‎        self.routine_items = []
+‎        
+‎        layout = BoxLayout(orientation='vertical', padding=15, spacing=10)
+‎        
+‎        self.title_label = Label(text='Daily Routine Planner', font_size=20, size_hint_y=None, height=40)
+‎        layout.add_widget(self.title_label)
+‎        
+‎        form_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=50, spacing=5)
+‎        self.time_input = TextInput(hint_text='Time (e.g. 08:00 AM)', multiline=False)
+‎        self.task_input = TextInput(hint_text='Task description', multiline=False)
+‎        form_layout.add_widget(self.time_input)
+‎        form_layout.add_widget(self.task_input)
+‎        layout.add_widget(form_layout)
+‎        
+‎        add_btn = Button(text='Add Task', size_hint_y=None, height=45, background_color=(0.2, 0.7, 0.3, 1))
+‎        add_btn.bind(on_press=self.add_task)
+‎        layout.add_widget(add_btn)
+‎        
+‎        self.scroll = ScrollView()
+‎        self.list_layout = BoxLayout(orientation='vertical', size_hint_y=None, spacing=5)
+‎        self.list_layout.bind(minimum_height=self.list_layout.setter('height'))
+‎        self.scroll.add_widget(self.list_layout)
+‎        layout.add_widget(self.scroll)
+‎        
+‎        save_btn = Button(text='Save Routine to File', size_hint_y=None, height=45, background_color=(0.8, 0.5, 0.1, 1))
+‎        save_btn.bind(on_press=self.save_to_file)
+‎        layout.add_widget(save_btn)
+‎        
+‎        self.add_widget(layout)
+‎
+‎    def on_enter(self):
+‎        app = App.get_running_app()
+‎        self.title_label.text = f"Welcome, {app.username}!"
+‎
+‎    def add_task(self, instance):
+‎        t = self.time_input.text.strip()
+‎        desc = self.task_input.text.strip()
+‎        if t and desc:
+‎            item = {"time": t, "task": desc, "completed": False}
+‎            self.routine_items.append(item)
+‎            self.time_input.text = ""
+‎            self.task_input.text = ""
+‎            self.refresh_list()
+‎
+‎    def refresh_list(self):
+‎        self.list_layout.clear_widgets()
+‎        for idx, item in enumerate(self.routine_items, start=1):
+‎            status = "[✔]" if item["completed"] else "[ ]"
+‎            row = BoxLayout(orientation='horizontal', size_hint_y=None, height=40, spacing=5)
+‎            
+‎            lbl = Label(text=f"{idx}. [{item['time']}] {status} {item['task']}", halign='left', valign='middle')
+‎            lbl.bind(size=lbl.setter('text_size'))
+‎            row.add_widget(lbl)
+‎            
+‎            complete_btn = Button(text='Done', size_hint_x=None, width=70, background_color=(0.2, 0.5, 0.8, 1))
+‎            complete_btn.bind(on_press=lambda x, i=idx-1: self.mark_complete(i))
+‎            row.add_widget(complete_btn)
+‎            
+‎            self.list_layout.add_widget(row)
+‎
+‎    def mark_complete(self, index):
+‎        self.routine_items[index]["completed"] = True
+‎        self.refresh_list()
+‎
+‎    def save_to_file(self, instance):
+‎        filename = "my_daily_routine.txt"
+‎        try:
+‎            app = App.get_running_app()
+‎            with open(filename, "w", encoding="utf-8") as file:
+‎                file.write(f"Daily Routine for {app.username}\n")
+‎                file.write("-" * 55 + "\n")
+‎                for index, item in enumerate(self.routine_items, start=1):
+‎                    status = "[✔]" if item["completed"] else "[ ]"
+‎                    file.write(f"{index}. [{item['time']}] {status} {item['task']}\n")
+‎            self.title_label.text = "Routine saved successfully!"
+‎        except Exception as e:
+‎            self.title_label.text = "Error saving file!"
+‎
+‎# --- Main App ---
+‎class RoutineApp(App):
+‎    username = "User"
+‎    def build(self):
+‎        sm = ScreenManager()
+‎        sm.add_widget(LoginScreen(name='login_screen'))
+‎        sm.add_widget(NameScreen(name='name_screen'))
+‎        sm.add_widget(RoutineScreen(name='routine_screen'))
+‎        return sm
+‎
+‎if __name__ == '__main__':
+‎    RoutineApp().run()
+‎
